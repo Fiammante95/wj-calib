@@ -17,9 +17,7 @@ void setup(){
 
 void loop() {
 
-    shift = millis() - time_now;
-
-    if(shift >= dT)
+    if(millis() - time_now >= dT)
     {
 
         time_now = millis();
@@ -28,7 +26,7 @@ void loop() {
         Serial.println(analogRead(A0));
 
 
-      }
+    }
 
 
 
