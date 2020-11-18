@@ -18,8 +18,7 @@ nrollers = 6; % 1/2pi
 load([Path fileName]);
 
 % Time History plot
-%y=conv(Dati-mean(Dati),hanning(10),"same");
-y=Dati-mean(Dati);
+y=Dati;
 dt=1/fsamp;
 N=length(y);
 T = N/fsamp;
@@ -61,6 +60,29 @@ df = 1/T;
         spectrum_flat(N/2+1)=ft_flat(N/2+1)/N;
         
         axis_f=0:df:fsamp/2;
+      
+        figure
+        stem(axis_f,abs(spectrum_ret));
+        xlabel('Frequency [Hz]')
+        ylabel('|X|')
+        hold on
+        stem(axis_f,abs(spectrum_flat),'g');
+        stem(axis_f,abs(spectrum_han),'r');        
+        legend('Rectangular','Flat-top','Hanning')
+        set(gca, 'fontsize', 16)
+        
+        %identification of the maximum in the spectra
+        [val_r pos_r]=max(abs(spectrum_ret));
+     
+        f_r=(pos_r-1)*df;
+        
+        [val_h pos_h]=max(abs(spectrum_han));
+        
+        f_h=(pos_h-1)*df;
+        
+        [val_f pos_f]=max(abs(spectrum_flat));
+        v_f(ii)=val_f;
+        f_f(ii)=(pos_f-1)*df;
         
     else % odd case
         
@@ -81,9 +103,7 @@ df = 1/T;
         
         axis_f=0:df:fsamp/2-df/2;
         
-    end
-    
-    figure
+        figure
         stem(axis_f,abs(spectrum_ret));
         xlabel('Frequency [Hz]')
         ylabel('|X|')
@@ -93,17 +113,16 @@ df = 1/T;
         legend('Rectangular','Flat-top','Hanning')
         set(gca, 'fontsize', 16)
         
-        %identification of the maximum in the spectra
-        [val_r pos_r]=max(abs(spectrum_ret));
-     
-        f_r=(pos_r-1)*df;
+       [val_r pos_r]=max(abs(spectrum_ret));
+        v_r(ii)=val_r;
+        f_r(ii)=(pos_r-1)*df;
         
         [val_h pos_h]=max(abs(spectrum_han));
-        
-        f_h=(pos_h-1)*df;
+        v_h(ii)=val_h;
+        f_h(ii)=(pos_h-1)*df;
         
         [val_f pos_f]=max(abs(spectrum_flat));
-    
-        f_f=(pos_f-1)*df;
-
+        v_f(ii)=val_f;
+        f_f(ii)=(pos_f-1)*df;
         
+    end

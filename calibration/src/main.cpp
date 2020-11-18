@@ -9,26 +9,30 @@ int reading;
 int time_now = 0;
 int shift = 0;
 long timestamp = 0;
+int counter = 0;
+int T = 100; //s
+
+int N = T*fsamp;
 
 void setup(){
-  Serial.begin(9600);
+  Serial.begin(115200);
+  delay(10000);
+  Serial.println("Start Acquisition");
 
 }
 
 void loop() {
 
-    if(millis() - time_now >= dT)
+
+    if(millis() - time_now >= dT && counter < N)
     {
 
         time_now = millis();
-
-        //Serial.print(" " + String(shift));
+        counter++;
         Serial.println(analogRead(A0));
-
+        //Serial.print(" " + String(shift));
 
     }
-
-
 
 
 }
