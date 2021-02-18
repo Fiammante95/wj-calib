@@ -2,21 +2,29 @@ clear all
 close all
 clc
 
-%% (0)
-if 1
+%% (0) From raw data to the timeseries of analysis
     
     [fileName,Path]=uigetfile('D:\Documents\GitHub\arduino-labview-voltage-display\Labview\*.txt','Choose a raw data file');
     raw = readtable(strcat(Path,fileName));
     Dati = raw.TimeSeries';
     
-    %cure the data
+    %interpolate missing data
     zeropos=Dati==0;
     Dati(zeropos) = (Dati(find(zeropos)-2)+Dati(find(zeropos)+2))/2;
     
+    % fetch information about sampling rate
+    if exist('fsamp','var') == 0
+        input = inputdlg("What is the sampling frequency?");
+        fsamp = str2double(input{1});
+    end
+    
+    dt=1/fsamp;
+    tbuff = 0:dt:dt*(length(Dati)-1);
+    
     figure
-    plot(Dati);
+    plot(tbuff,Dati);
     hold on
-    uiwait(msgbox('Select an initial and final point','modal'));
+    uiwait(msgbox('Select approximate initial and final points','modal'));
     
     choice = 0;
     while choice ~= 2
@@ -30,21 +38,58 @@ if 1
     set(startplot,'Visible','off')
     set(endplot,'Visible','off')
     end
+    
+    input = inputdlg(strcat("Write the observation period to be considered. maximum is: ",num2str(x1-x0)," s"));
+    T = str2double(input{1});
+    t1 = ((x1+x0)-T)/2;
+    t2 = ((x1+x0)+T)/2;
+ 
+    % because im doing averages, i might not have datapoints on the exact
+    % t1 and t2. however, T is for sure multiple of dt, so i just have to
+    % move the window a bit.
+    
+    [t1_closestVal,t1_closestId] = min(abs(tbuff-t1));
+    [t2_closestVal,t2_closestId] = min(abs(tbuff-t2));
+
+    y = Dati(t1_closestId:t2_closestId);
+    N = length(y);
+    df = 1/T;
+    t=[0:1:(N-1)]*dt;
+ 
+    
+    figure
+    plot(t,y)
+    hold on
+    choice = menu("Windowing: Rectangular[R], Hanning[H], FlatTop[FT]","R","H","FT");
+    switch choice 
         
-    Dati = Dati(floor(x0):ceil(x1));
+        case 1
+
+        case 2
+            
+            window=hanning(N)';
+            y=y.*window;
+            
+        case 3
+            
+            window=flattopwin(N)';
+            y=y.*window;
     
-    if exist('fsamp','var') == 0
-        input = inputdlg("What is the sampling frequency? please enter an integer value");
-        fsamp = str2double(input{1});
+           
     end
-else
-    
-    % Load the data
-    [fileName,Path]=uigetfile('*.mat','Choose a file');
-    load([Path fileName]);
+    plot(t,y)
+    xlabel('time[s]')
+    ylabel('amplitude')
+    legend("original signal","windowed signal")
+    grid
+    set(gca, 'fontsize', 16)
+    ylim([min(y) max(y)]);
+    xlim([t(1) t(end)]);
 
     
-end
+    
+    
+
 % working conditions
 
 % all the "forced2" series were either 50 or 300 steps
@@ -52,58 +97,38 @@ end
 %step_rate = 200; %step/s
 %steps_per_rev = 200; %step/2pi
 rpm = 100; %2pi/min
-nrollers = 10; % 1/2pi
-
-fpuls = rpm*nrollers/60*2*pi; %1/s
+nrollers = 10; % pulse/2pi
+fpuls = rpm*nrollers/60; %1/s
 
 
 %% (1)
 
-% Time History plot
-%y=conv(Dati-mean(Dati),hanning(5),"same");
-%y=Dati-mean(Dati);
-y = Dati;
-dt=1/fsamp;
-N=length(y);
-T = N/fsamp;
-df = 1/T;
-t=[0:1:(N-1)]*dt;
 
-figure
-plot(t,y)
-xlabel('time[s]')
-ylabel('amplitude')
-grid
-set(gca, 'fontsize', 16)
-ylim([min(y) max(y)]);
-xlim([t(1) t(end)]);
 
-pause
+
 
 %% (2) Plot of the spectrum, power spectrum and PSD of the whole signal
 
 % Windowing
-window=hanning(N)';
-Datah=Dati.*window;
+
 
 % DFT
-[A, frequency]=fft_norm(Datah,fsamp);
+[A, frequency]=fft_norm(y,fsamp);
 A_star=conj(A);
 
 % Plot the spectrum
-figure
-stem(frequency,abs(A))
-hold on
-plot([fpuls fpuls],[min(abs(A)) max(abs(A))],'--k')
-%set(gca,'Yscale','log')
-ylabel('Modulus')
-xlabel('[Hz]')
-legend('Rectangular')
-set(gca, 'fontsize', 16)
-xlim([0.5 frequency(end)]);
-ylim([0 mean(abs(A))])
+% figure
+% stem(frequency,abs(A))
+% hold on
+% plot([fpuls fpuls],[min(abs(A)) max(abs(A))],'--k')
+% %set(gca,'Yscale','log')
+% ylabel('Modulus')
+% xlabel('[Hz]')
+% %legend('Rectangular')
+% set(gca, 'fontsize', 16)
+% xlim([0 frequency(end)]);
+% ylim([0 mean(abs(A))])
 
-pause
 
 % Power Spectrum
 SAA=A_star.*A;
@@ -118,14 +143,13 @@ semilogy(frequency,abs(A),'b')
 hold on
 semilogy(frequency,SAA,'r')
 semilogy(frequency,PSD,'m')
+semilogy([fpuls fpuls],[min(SAA) max(PSD)],'--k')
 set(gca,'fontsize',14)
 grid on
 legend('Spectrum ampl.','Power spectrum','PSD')
-title('Whole data set')
+title('Spectrum Analysis')
 xlabel('Frequency [Hz]')
-xlim([0.5 10]);
-
-pause
+xlim([0 fpuls*3]);
 
 %% (3) Methods for the averaging process
 
@@ -175,43 +199,14 @@ SAA_av_2_ris2=mean(SAA_MAT_ris2,2);
 
 % Plot of the results
 figure
-semilogy(frequency1,abs(SP_aver_ris1),'b','linewidth',2)
+semilogy(frequency1,SAA_av_2_ris1,'b','linewidth',2)
 hold on
-semilogy(frequency2,abs(SP_aver_ris1_2),'r','linewidth',2)
-set(gca,'fontsize',14)
-title('Average spectrum')
-xlabel('Frequency [Hz]')
-ylabel('|A| [m/s^2]')
-legend('df=0.1','df=0.05')
-xlim([0.5 10]);
-grid
-
-figure
-semilogy(frequency1,(SAA_av_2_ris1),'b','linewidth',2)
-hold on
-semilogy(frequency2,(SAA_av_2_ris2),'r','linewidth',2)
-plot([fpuls fpuls],[min(SAA_av_2_ris1) max(SAA_av_2_ris1)],'--k')
+semilogy(frequency2,abs(SAA_av_2_ris2),'r','linewidth',2)
+semilogy([fpuls fpuls],[min(SAA_av_2_ris2) max(SAA_av_2_ris2)],'--k')
 set(gca,'fontsize',14)
 title('Average power spectrum')
 xlabel('Frequency [Hz]')
-ylabel('S_{AA} [(m/s^2)^2]')
-legend('df=0.1Hz','df=0.05Hz')
-xlim([0.5 10]);
+ylabel('|A| [m/s^2]')
+legend('df=0.1','df=0.05')
+xlim([0 fpuls*3]);
 grid
-
-figure
-semilogy(frequency1,(SAA_av_2_ris1),'b','linewidth',2)
-hold on
-semilogy(frequency2,(SAA_av_2_ris2),'r','linewidth',2)
-semilogy(frequency1,(SAA_av_1_ris1),'c','linewidth',2)
-semilogy(frequency2,(SAA_av_1_ris1_2),'m','linewidth',2)
-plot([fpuls fpuls],[min(SAA_av_1_ris1) max(SAA_av_2_ris1)],'--k')
-set(gca,'fontsize',14)
-title('Power spectra')
-xlabel('Frequency [Hz]')
-ylabel('S_{AA} [(m/s^2)^2]')
-legend('aver. S_{AA} df=0.1Hz','aver. S_{AA} df=0.05Hz', 'aver. A df=0.1Hz', 'aver. A df=0.05Hz','Location','southeast')
-xlim([0.5 10]);
-grid
-
-        
